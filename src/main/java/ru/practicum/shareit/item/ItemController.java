@@ -1,5 +1,6 @@
 package ru.practicum.shareit.item;
 
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -34,7 +35,7 @@ public class ItemController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public ItemDto createItem(@RequestHeader(Headers.USER_ID) Long ownerId,
-                              @RequestBody ItemDto itemDto) {
+                              @Valid @RequestBody ItemDto itemDto) {
         log.info("POST /items от владельца id={}", ownerId);
         return itemService.createItem(ownerId, itemDto);
     }
@@ -57,7 +58,7 @@ public class ItemController {
     @ResponseStatus(HttpStatus.CREATED)
     public CommentDto addComment(@RequestHeader(Headers.USER_ID) Long userId,
                                  @PathVariable Long itemId,
-                                 @RequestBody CommentDto commentDto) {
+                                 @Valid @RequestBody CommentDto commentDto) {
         log.info("POST /items/{}/comment от пользователя id={}", itemId, userId);
         return itemService.addComment(userId, itemId, commentDto);
     }

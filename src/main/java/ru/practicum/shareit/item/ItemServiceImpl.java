@@ -2,7 +2,6 @@ package ru.practicum.shareit.item;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.practicum.shareit.booking.Booking;
@@ -20,7 +19,9 @@ import ru.practicum.shareit.user.User;
 import ru.practicum.shareit.user.UserRepository;
 
 import java.time.LocalDateTime;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -41,7 +42,26 @@ public class ItemServiceImpl implements ItemService {
         List<ItemDto> dtos = items.stream()
                 .map(ItemMapper::toDto)
                 .collect(Collectors.toList());
-        dtos.forEach(dto -> enrichItemDto(dto, ownerId));
+
+        List<Long> itemIds = dtos.stream()
+                .map(ItemDto::getId)
+                .filter(id -> id != null) // защита от null
+                .collect(Collectors.toList());
+
+        Map<Long, List<Booking>> bookingsByItem;
+        if (!itemIds.isEmpty()) {
+            bookingsByItem = bookingRepository.findApprovedByItemIds(itemIds)
+                    .stream()
+                    .collect(Collectors.groupingBy(b -> b.getItem().getId()));
+        } else {
+            bookingsByItem = Collections.emptyMap();
+        }
+
+        for (ItemDto dto : dtos) {
+            List<Booking> bookings = bookingsByItem.get(dto.getId());
+            enrichItemDto(dto, ownerId, bookings != null ? bookings : Collections.emptyList());
+        }
+
         return dtos;
     }
 
@@ -50,7 +70,15 @@ public class ItemServiceImpl implements ItemService {
         Item item = itemRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("Вещь с id=" + id + " не найдена"));
         ItemDto dto = ItemMapper.toDto(item);
-        enrichItemDto(dto, userId);
+
+        List<Booking> bookings;
+        if (dto.getId() != null) {
+            bookings = bookingRepository.findApprovedByItemIds(List.of(dto.getId()));
+        } else {
+            bookings = Collections.emptyList();
+        }
+        enrichItemDto(dto, userId, bookings != null ? bookings : Collections.emptyList());
+
         return dto;
     }
 
@@ -59,16 +87,6 @@ public class ItemServiceImpl implements ItemService {
     public ItemDto createItem(Long ownerId, ItemDto itemDto) {
         User owner = userRepository.findById(ownerId)
                 .orElseThrow(() -> new NotFoundException("Пользователь с id=" + ownerId + " не найден"));
-
-        if (itemDto.getName() == null || itemDto.getName().isBlank()) {
-            throw new ValidationException("Название не может быть пустым");
-        }
-        if (itemDto.getDescription() == null || itemDto.getDescription().isBlank()) {
-            throw new ValidationException("Описание не может быть пустым");
-        }
-        if (itemDto.getAvailable() == null) {
-            throw new ValidationException("Статус доступности (available) обязателен");
-        }
 
         Item item = ItemMapper.toItem(itemDto);
         item.setOwnerId(ownerId);
@@ -144,33 +162,52 @@ public class ItemServiceImpl implements ItemService {
         return response;
     }
 
-    private void enrichItemDto(ItemDto dto, Long userId) {
-        List<Comment> comments = commentRepository.findByItemIdOrderByCreatedDesc(dto.getId());
-        List<CommentDto> commentDtos = comments.stream()
-                .map(c -> {
-                    CommentDto cd = new CommentDto();
-                    cd.setId(c.getId());
-                    cd.setText(c.getText());
-                    cd.setAuthorName(c.getAuthor().getName());
-                    cd.setCreated(c.getCreated());
-                    return cd;
-                })
-                .collect(Collectors.toList());
-        dto.setComments(commentDtos);
+    private void enrichItemDto(ItemDto dto, Long userId, List<Booking> bookings) {
+        // Проверка на null id
+        if (dto.getId() == null) {
+            log.warn("ItemDto id is null, skipping enrichment");
+            return;
+        }
 
-        if (dto.getOwnerId() != null && dto.getOwnerId().equals(userId)) {
-            Sort sortDesc = Sort.by(Sort.Direction.DESC, "end");
-            List<Booking> lastBookings = bookingRepository.findPastBookingsByItemId(
-                    dto.getId(), LocalDateTime.now(), sortDesc);
-            if (!lastBookings.isEmpty()) {
-                dto.setLastBooking(bookingMapper.toDto(lastBookings.get(0)));
-            }
+        try {
+            List<Comment> comments = commentRepository.findByItemIdOrderByCreatedDesc(dto.getId());
+            List<CommentDto> commentDtos = comments.stream()
+                    .map(c -> {
+                        CommentDto cd = new CommentDto();
+                        cd.setId(c.getId());
+                        cd.setText(c.getText());
+                        cd.setAuthorName(c.getAuthor().getName());
+                        cd.setCreated(c.getCreated());
+                        return cd;
+                    })
+                    .collect(Collectors.toList());
+            dto.setComments(commentDtos);
+        } catch (Exception e) {
+            log.error("Error loading comments for item id {}: {}", dto.getId(), e.getMessage());
+            dto.setComments(Collections.emptyList());
+        }
 
-            Sort sortAsc = Sort.by(Sort.Direction.ASC, "start");
-            List<Booking> nextBookings = bookingRepository.findFutureBookingsByItemId(
-                    dto.getId(), LocalDateTime.now(), sortAsc);
-            if (!nextBookings.isEmpty()) {
-                dto.setNextBooking(bookingMapper.toDto(nextBookings.get(0)));
+        if (dto.getOwnerId() != null && dto.getOwnerId().equals(userId) && bookings != null) {
+            try {
+                LocalDateTime now = LocalDateTime.now();
+
+                dto.setLastBooking(
+                        bookings.stream()
+                                .filter(b -> b.getEnd().isBefore(now))
+                                .max((b1, b2) -> b1.getEnd().compareTo(b2.getEnd()))
+                                .map(bookingMapper::toDto)
+                                .orElse(null)
+                );
+
+                dto.setNextBooking(
+                        bookings.stream()
+                                .filter(b -> b.getStart().isAfter(now))
+                                .min((b1, b2) -> b1.getStart().compareTo(b2.getStart()))
+                                .map(bookingMapper::toDto)
+                                .orElse(null)
+                );
+            } catch (Exception e) {
+                log.error("Error processing bookings for item id {}: {}", dto.getId(), e.getMessage());
             }
         }
     }
