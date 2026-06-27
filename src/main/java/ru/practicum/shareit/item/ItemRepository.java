@@ -1,51 +1,18 @@
 package ru.practicum.shareit.item;
 
-import org.springframework.stereotype.Repository;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import ru.practicum.shareit.item.model.Item;
 
-import java.util.*;
-import java.util.stream.Collectors;
+import java.util.List;
 
-@Repository
-public class ItemRepository {
-    private final Map<Long, Item> items = new HashMap<>();
-    private long nextId = 1L;
+public interface ItemRepository extends JpaRepository<Item, Long> {
+    List<Item> findByOwnerId(Long ownerId);
 
-    public List<Item> findAll() {
-        return new ArrayList<>(items.values());
-    }
-
-    public Optional<Item> findById(Long id) {
-        return Optional.ofNullable(items.get(id));
-    }
-
-    public Item save(Item item) {
-        if (item.getId() == null) {
-            item.setId(nextId++);
-        }
-        items.put(item.getId(), item);
-        return item;
-    }
-
-    public void deleteById(Long id) {
-        items.remove(id);
-    }
-
-    public List<Item> findByOwner(Long ownerId) {
-        return items.values().stream()
-                .filter(item -> item.getOwner().equals(ownerId))
-                .collect(Collectors.toList());
-    }
-
-    public List<Item> searchAvailable(String text) {
-        if (text == null || text.isBlank()) {
-            return Collections.emptyList();
-        }
-        String lowerText = text.toLowerCase();
-        return items.values().stream()
-                .filter(Item::getAvailable)
-                .filter(item -> item.getName().toLowerCase().contains(lowerText)
-                        || item.getDescription().toLowerCase().contains(lowerText))
-                .collect(Collectors.toList());
-    }
+    @Query("SELECT i FROM Item i " +
+            "WHERE (UPPER(i.name) LIKE UPPER(CONCAT('%', :text, '%')) " +
+            "   OR UPPER(i.description) LIKE UPPER(CONCAT('%', :text, '%'))) " +
+            "AND i.available = true")
+    List<Item> searchByText(@Param("text") String text);
 }

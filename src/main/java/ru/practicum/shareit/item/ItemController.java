@@ -4,6 +4,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
+import ru.practicum.shareit.Headers;
+import ru.practicum.shareit.item.dto.CommentDto;
 import ru.practicum.shareit.item.dto.ItemDto;
 
 import java.util.List;
@@ -13,36 +15,35 @@ import java.util.List;
 @RequestMapping("/items")
 @RequiredArgsConstructor
 public class ItemController {
+
     private final ItemService itemService;
 
     @GetMapping
-    public List<ItemDto> getItems(@RequestHeader("X-Sharer-User-Id") Long ownerId) {
+    public List<ItemDto> getItems(@RequestHeader(Headers.USER_ID) Long ownerId) {
         log.info("GET /items для владельца id={}", ownerId);
         return itemService.getItemsByOwner(ownerId);
     }
 
     @GetMapping("/{itemId}")
-    public ItemDto getItemById(@PathVariable Long itemId) {
-        log.info("GET /items/{}", itemId);
-        return itemService.getItemById(itemId);
+    public ItemDto getItemById(@RequestHeader(Headers.USER_ID) Long userId,
+                               @PathVariable Long itemId) {
+        log.info("GET /items/{} от пользователя id={}", itemId, userId);
+        return itemService.getItemById(itemId, userId);
     }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public ItemDto createItem(@RequestHeader("X-Sharer-User-Id") Long ownerId,
+    public ItemDto createItem(@RequestHeader(Headers.USER_ID) Long ownerId,
                               @RequestBody ItemDto itemDto) {
         log.info("POST /items от владельца id={}", ownerId);
         return itemService.createItem(ownerId, itemDto);
     }
 
     @PatchMapping("/{itemId}")
-    public ItemDto updateItem(@RequestHeader("X-Sharer-User-Id") Long ownerId,
+    public ItemDto updateItem(@RequestHeader(Headers.USER_ID) Long ownerId,
                               @PathVariable Long itemId,
-                              @RequestBody(required = false) ItemDto itemDto) {
+                              @RequestBody ItemDto itemDto) {
         log.info("PATCH /items/{} от владельца id={}", itemId, ownerId);
-        if (itemDto == null) {
-            throw new ru.practicum.shareit.exception.ValidationException("Тело запроса не может быть пустым");
-        }
         return itemService.updateItem(itemId, ownerId, itemDto);
     }
 
@@ -50,5 +51,14 @@ public class ItemController {
     public List<ItemDto> searchItems(@RequestParam String text) {
         log.info("GET /items/search?text={}", text);
         return itemService.searchAvailable(text);
+    }
+
+    @PostMapping("/{itemId}/comment")
+    @ResponseStatus(HttpStatus.CREATED)
+    public CommentDto addComment(@RequestHeader(Headers.USER_ID) Long userId,
+                                 @PathVariable Long itemId,
+                                 @RequestBody CommentDto commentDto) {
+        log.info("POST /items/{}/comment от пользователя id={}", itemId, userId);
+        return itemService.addComment(userId, itemId, commentDto);
     }
 }
