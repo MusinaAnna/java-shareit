@@ -43,4 +43,10 @@ public class ErrorHandler {
     public ErrorResponse handleOther(Throwable e) {
         return new ErrorResponse("Произошла непредвиденная ошибка");
     }
+
+    @ExceptionHandler(ConflictException.class)
+    @ResponseStatus(HttpStatus.CONFLICT)
+    public ErrorResponse handleConflict(ConflictException e) {
+        return new ErrorResponse(e.getMessage());
+    }
 }
