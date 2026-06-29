@@ -48,7 +48,6 @@ public class ItemServiceImpl implements ItemService {
                 .filter(id -> id != null)
                 .collect(Collectors.toList());
 
-        // Загружаем все бронирования одним запросом
         Map<Long, List<Booking>> bookingsByItem;
         if (!itemIds.isEmpty()) {
             bookingsByItem = bookingRepository.findApprovedByItemIds(itemIds)
@@ -58,7 +57,6 @@ public class ItemServiceImpl implements ItemService {
             bookingsByItem = Collections.emptyMap();
         }
 
-        // Загружаем все комментарии одним запросом
         Map<Long, List<Comment>> commentsByItem;
         if (!itemIds.isEmpty()) {
             commentsByItem = commentRepository.findByItemIdIn(itemIds)
@@ -84,14 +82,13 @@ public class ItemServiceImpl implements ItemService {
         ItemDto dto = ItemMapper.toDto(item);
 
         List<Booking> bookings;
-        List<Comment> comments;
         if (dto.getId() != null) {
             bookings = bookingRepository.findApprovedByItemIds(List.of(dto.getId()));
-            comments = commentRepository.findByItemIdIn(List.of(dto.getId()));
         } else {
             bookings = Collections.emptyList();
-            comments = Collections.emptyList();
         }
+
+        List<Comment> comments = commentRepository.findByItemIdOrderByCreatedDesc(dto.getId());
         enrichItemDto(dto, userId, bookings, comments);
 
         return dto;
