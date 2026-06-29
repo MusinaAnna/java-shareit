@@ -45,9 +45,10 @@ public class ItemServiceImpl implements ItemService {
 
         List<Long> itemIds = dtos.stream()
                 .map(ItemDto::getId)
-                .filter(id -> id != null) // защита от null
+                .filter(id -> id != null)
                 .collect(Collectors.toList());
 
+        // Загружаем все бронирования одним запросом
         Map<Long, List<Booking>> bookingsByItem;
         if (!itemIds.isEmpty()) {
             bookingsByItem = bookingRepository.findApprovedByItemIds(itemIds)
@@ -57,9 +58,20 @@ public class ItemServiceImpl implements ItemService {
             bookingsByItem = Collections.emptyMap();
         }
 
+        // Загружаем все комментарии одним запросом
+        Map<Long, List<Comment>> commentsByItem;
+        if (!itemIds.isEmpty()) {
+            commentsByItem = commentRepository.findByItemIdIn(itemIds)
+                    .stream()
+                    .collect(Collectors.groupingBy(c -> c.getItem().getId()));
+        } else {
+            commentsByItem = Collections.emptyMap();
+        }
+
         for (ItemDto dto : dtos) {
-            List<Booking> bookings = bookingsByItem.get(dto.getId());
-            enrichItemDto(dto, ownerId, bookings != null ? bookings : Collections.emptyList());
+            List<Booking> bookings = bookingsByItem.getOrDefault(dto.getId(), Collections.emptyList());
+            List<Comment> comments = commentsByItem.getOrDefault(dto.getId(), Collections.emptyList());
+            enrichItemDto(dto, ownerId, bookings, comments);
         }
 
         return dtos;
@@ -72,12 +84,15 @@ public class ItemServiceImpl implements ItemService {
         ItemDto dto = ItemMapper.toDto(item);
 
         List<Booking> bookings;
+        List<Comment> comments;
         if (dto.getId() != null) {
             bookings = bookingRepository.findApprovedByItemIds(List.of(dto.getId()));
+            comments = commentRepository.findByItemIdIn(List.of(dto.getId()));
         } else {
             bookings = Collections.emptyList();
+            comments = Collections.emptyList();
         }
-        enrichItemDto(dto, userId, bookings != null ? bookings : Collections.emptyList());
+        enrichItemDto(dto, userId, bookings, comments);
 
         return dto;
     }
@@ -85,7 +100,7 @@ public class ItemServiceImpl implements ItemService {
     @Override
     @Transactional
     public ItemDto createItem(Long ownerId, ItemDto itemDto) {
-        User owner = userRepository.findById(ownerId)
+        userRepository.findById(ownerId)
                 .orElseThrow(() -> new NotFoundException("Пользователь с id=" + ownerId + " не найден"));
 
         Item item = ItemMapper.toItem(itemDto);
@@ -162,30 +177,23 @@ public class ItemServiceImpl implements ItemService {
         return response;
     }
 
-    private void enrichItemDto(ItemDto dto, Long userId, List<Booking> bookings) {
-        // Проверка на null id
+    private void enrichItemDto(ItemDto dto, Long userId, List<Booking> bookings, List<Comment> comments) {
         if (dto.getId() == null) {
             log.warn("ItemDto id is null, skipping enrichment");
             return;
         }
 
-        try {
-            List<Comment> comments = commentRepository.findByItemIdOrderByCreatedDesc(dto.getId());
-            List<CommentDto> commentDtos = comments.stream()
-                    .map(c -> {
-                        CommentDto cd = new CommentDto();
-                        cd.setId(c.getId());
-                        cd.setText(c.getText());
-                        cd.setAuthorName(c.getAuthor().getName());
-                        cd.setCreated(c.getCreated());
-                        return cd;
-                    })
-                    .collect(Collectors.toList());
-            dto.setComments(commentDtos);
-        } catch (Exception e) {
-            log.error("Error loading comments for item id {}: {}", dto.getId(), e.getMessage());
-            dto.setComments(Collections.emptyList());
-        }
+        List<CommentDto> commentDtos = comments.stream()
+                .map(c -> {
+                    CommentDto cd = new CommentDto();
+                    cd.setId(c.getId());
+                    cd.setText(c.getText());
+                    cd.setAuthorName(c.getAuthor().getName());
+                    cd.setCreated(c.getCreated());
+                    return cd;
+                })
+                .collect(Collectors.toList());
+        dto.setComments(commentDtos);
 
         if (dto.getOwnerId() != null && dto.getOwnerId().equals(userId) && bookings != null) {
             try {
