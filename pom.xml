@@ -50,4 +50,10 @@
             </plugins>
         </pluginManagement>
     </build>
+
+    <profiles>
+        <profile>
+            <id>check</id>
+        </profile>
+    </profiles>
 </project>
