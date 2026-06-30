@@ -4,6 +4,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import ru.practicum.shareit.Headers;
 import ru.practicum.shareit.client.BaseClient;
 
 @RestController
@@ -12,15 +13,14 @@ import ru.practicum.shareit.client.BaseClient;
 public class UserController {
     private final BaseClient client;
 
-    // Получение всех пользователей
-    @GetMapping
-    public ResponseEntity<Object> getAllUsers() {
-        return client.get("/users");
-    }
-
     @PostMapping
     public ResponseEntity<Object> create(@Valid @RequestBody UserDto userDto) {
         return client.post("/users", userDto);
+    }
+
+    @GetMapping
+    public ResponseEntity<Object> getAllUsers() {
+        return client.get("/users");
     }
 
     @GetMapping("/{id}")

@@ -10,6 +10,7 @@ import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.util.UriComponentsBuilder;
 
 import java.util.List;
 import java.util.Map;
@@ -89,15 +90,19 @@ public class BaseClient {
     private <T> ResponseEntity<Object> makeAndSendRequest(HttpMethod method, String path, Long userId,
                                                           @Nullable Map<String, Object> parameters, @Nullable T body) {
         String fullPath = serverUrl + path;
-        HttpEntity<T> requestEntity = new HttpEntity<>(body, defaultHeaders(userId));
+        if (parameters != null && !parameters.isEmpty()) {
+            UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(fullPath);
+            for (Map.Entry<String, Object> entry : parameters.entrySet()) {
+                builder.queryParam(entry.getKey(), entry.getValue());
+            }
+            fullPath = builder.build().toUriString();
+        }
+        System.out.println("Full URL: " + fullPath);
 
+        HttpEntity<T> requestEntity = new HttpEntity<>(body, defaultHeaders(userId));
         ResponseEntity<Object> response;
         try {
-            if (parameters != null) {
-                response = rest.exchange(fullPath, method, requestEntity, Object.class, parameters);
-            } else {
-                response = rest.exchange(fullPath, method, requestEntity, Object.class);
-            }
+            response = rest.exchange(fullPath, method, requestEntity, Object.class);
         } catch (HttpStatusCodeException e) {
             return ResponseEntity.status(e.getStatusCode()).body(e.getResponseBodyAsByteArray());
         }
