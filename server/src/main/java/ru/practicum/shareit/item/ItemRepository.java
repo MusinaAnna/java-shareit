@@ -8,6 +8,7 @@ import ru.practicum.shareit.item.model.Item;
 import java.util.List;
 
 public interface ItemRepository extends JpaRepository<Item, Long> {
+
     List<Item> findByOwnerId(Long ownerId);
 
     @Query("SELECT i FROM Item i " +
@@ -17,4 +18,6 @@ public interface ItemRepository extends JpaRepository<Item, Long> {
     List<Item> searchByText(@Param("text") String text);
 
     List<Item> findByRequestId(Long requestId);
+
+    List<Item> findByRequestIdIn(List<Long> requestIds);
 }

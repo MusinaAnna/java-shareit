@@ -11,7 +11,6 @@ import ru.practicum.shareit.exception.NotFoundException;
 import ru.practicum.shareit.item.ItemRepository;
 import ru.practicum.shareit.item.model.Item;
 import ru.practicum.shareit.request.dto.ItemRequestDto;
-import ru.practicum.shareit.request.ItemRequest;
 import ru.practicum.shareit.user.User;
 import ru.practicum.shareit.user.UserRepository;
 
@@ -92,7 +91,7 @@ class ItemRequestServiceImplTest {
     void getUserRequests_shouldReturnListOfRequestsWithItems() {
         when(userRepository.findById(1L)).thenReturn(Optional.of(requester));
         when(requestRepository.findByRequesterIdOrderByCreatedDesc(1L)).thenReturn(List.of(request));
-        when(itemRepository.findByRequestId(1L)).thenReturn(List.of(item));
+        when(itemRepository.findByRequestIdIn(List.of(1L))).thenReturn(List.of(item));
 
         List<ItemRequestDto> result = service.getUserRequests(1L);
 
@@ -103,7 +102,7 @@ class ItemRequestServiceImplTest {
         assertEquals(1, result.get(0).getItems().size());
         verify(userRepository).findById(1L);
         verify(requestRepository).findByRequesterIdOrderByCreatedDesc(1L);
-        verify(itemRepository).findByRequestId(1L);
+        verify(itemRepository).findByRequestIdIn(List.of(1L)); // теперь ожидается этот вызов
     }
 
     @Test
@@ -120,7 +119,7 @@ class ItemRequestServiceImplTest {
         when(userRepository.findById(1L)).thenReturn(Optional.of(requester));
         when(requestRepository.findByRequesterIdNotOrderByCreatedDesc(eq(1L), any(PageRequest.class)))
                 .thenReturn(List.of(request));
-        when(itemRepository.findByRequestId(1L)).thenReturn(List.of(item));
+        when(itemRepository.findByRequestIdIn(List.of(1L))).thenReturn(List.of(item));
 
         List<ItemRequestDto> result = service.getAllRequests(1L, 0, 10);
 
@@ -128,7 +127,7 @@ class ItemRequestServiceImplTest {
         assertEquals(1, result.size());
         verify(userRepository).findById(1L);
         verify(requestRepository).findByRequesterIdNotOrderByCreatedDesc(eq(1L), any(PageRequest.class));
-        verify(itemRepository).findByRequestId(1L);
+        verify(itemRepository).findByRequestIdIn(List.of(1L)); // теперь ожидается этот вызов
     }
 
     @Test

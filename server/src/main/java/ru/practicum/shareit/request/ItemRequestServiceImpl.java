@@ -15,7 +15,9 @@ import ru.practicum.shareit.user.User;
 import ru.practicum.shareit.user.UserRepository;
 
 import java.time.LocalDateTime;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -51,9 +53,7 @@ public class ItemRequestServiceImpl implements ItemRequestService {
                 .orElseThrow(() -> new NotFoundException("Пользователь не найден"));
 
         List<ItemRequest> requests = requestRepository.findByRequesterIdOrderByCreatedDesc(userId);
-        return requests.stream()
-                .map(this::mapToDtoWithItems)
-                .collect(Collectors.toList());
+        return mapToDtosWithItems(requests);
     }
 
     @Override
@@ -63,9 +63,7 @@ public class ItemRequestServiceImpl implements ItemRequestService {
 
         PageRequest page = PageRequest.of(from / size, size, Sort.by(Sort.Direction.DESC, "created"));
         List<ItemRequest> requests = requestRepository.findByRequesterIdNotOrderByCreatedDesc(userId, page);
-        return requests.stream()
-                .map(this::mapToDtoWithItems)
-                .collect(Collectors.toList());
+        return mapToDtosWithItems(requests);
     }
 
     @Override
@@ -95,5 +93,31 @@ public class ItemRequestServiceImpl implements ItemRequestService {
                 .map(ItemMapper::toDto)
                 .collect(Collectors.toList()));
         return dto;
+    }
+
+    private List<ItemRequestDto> mapToDtosWithItems(List<ItemRequest> requests) {
+        if (requests.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        List<Long> requestIds = requests.stream()
+                .map(ItemRequest::getId)
+                .collect(Collectors.toList());
+
+        List<Item> items = itemRepository.findByRequestIdIn(requestIds);
+
+        Map<Long, List<Item>> itemsByRequestId = items.stream()
+                .collect(Collectors.groupingBy(Item::getRequestId));
+
+        return requests.stream()
+                .map(request -> {
+                    ItemRequestDto dto = mapToDto(request);
+                    List<Item> requestItems = itemsByRequestId.getOrDefault(request.getId(), Collections.emptyList());
+                    dto.setItems(requestItems.stream()
+                            .map(ItemMapper::toDto)
+                            .collect(Collectors.toList()));
+                    return dto;
+                })
+                .collect(Collectors.toList());
     }
 }
