@@ -6,13 +6,19 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import ru.practicum.shareit.booking.Booking;
+import ru.practicum.shareit.booking.BookingMapper;
 import ru.practicum.shareit.booking.BookingRepository;
+import ru.practicum.shareit.booking.BookingStatus;
 import ru.practicum.shareit.exception.ForbiddenException;
 import ru.practicum.shareit.exception.NotFoundException;
+import ru.practicum.shareit.exception.ValidationException;
 import ru.practicum.shareit.item.dto.CommentDto;
 import ru.practicum.shareit.item.dto.ItemDto;
 import ru.practicum.shareit.item.model.Comment;
 import ru.practicum.shareit.item.model.Item;
+import ru.practicum.shareit.request.ItemRequest;
+import ru.practicum.shareit.request.ItemRequestRepository;
 import ru.practicum.shareit.user.User;
 import ru.practicum.shareit.user.UserRepository;
 
@@ -39,12 +45,20 @@ class ItemServiceImplTest {
     @Mock
     private BookingRepository bookingRepository;
 
+    @Mock
+    private BookingMapper bookingMapper;
+
+    @Mock
+    private ItemRequestRepository itemRequestRepository;
+
     @InjectMocks
     private ItemServiceImpl itemService;
 
     private User owner;
+    private User booker;
     private Item item;
     private ItemDto itemDto;
+    private ItemRequest request;
 
     @BeforeEach
     void setUp() {
@@ -52,12 +66,21 @@ class ItemServiceImplTest {
         owner.setId(1L);
         owner.setName("Owner");
 
+        booker = new User();
+        booker.setId(2L);
+        booker.setName("Booker");
+
+        request = new ItemRequest();
+        request.setId(1L);
+        request.setDescription("Request desc");
+
         item = new Item();
         item.setId(1L);
         item.setName("Item");
         item.setDescription("Desc");
         item.setAvailable(true);
-        item.setOwnerId(1L);
+        item.setOwner(owner);
+        item.setRequest(null);
 
         itemDto = new ItemDto();
         itemDto.setId(1L);
@@ -65,6 +88,7 @@ class ItemServiceImplTest {
         itemDto.setDescription("Desc");
         itemDto.setAvailable(true);
         itemDto.setOwnerId(1L);
+        itemDto.setRequestId(null); // requestId = null
     }
 
     @Test
@@ -96,12 +120,32 @@ class ItemServiceImplTest {
         ItemDto result = itemService.createItem(1L, itemDto);
         assertEquals("Item", result.getName());
         verify(itemRepository).save(any(Item.class));
+        verify(itemRequestRepository, never()).findById(anyLong());
     }
 
     @Test
     void createItem_shouldThrowNotFoundIfUserMissing() {
         when(userRepository.findById(1L)).thenReturn(Optional.empty());
         assertThrows(NotFoundException.class, () -> itemService.createItem(1L, itemDto));
+    }
+
+    @Test
+    void createItem_withRequestId_shouldSaveAndReturn() {
+        ItemDto dtoWithRequest = new ItemDto();
+        dtoWithRequest.setName("Item with request");
+        dtoWithRequest.setDescription("Desc");
+        dtoWithRequest.setAvailable(true);
+        dtoWithRequest.setOwnerId(1L);
+        dtoWithRequest.setRequestId(1L); // requestId указан
+
+        when(userRepository.findById(1L)).thenReturn(Optional.of(owner));
+        when(itemRequestRepository.findById(1L)).thenReturn(Optional.of(request));
+        when(itemRepository.save(any(Item.class))).thenReturn(item);
+
+        ItemDto result = itemService.createItem(1L, dtoWithRequest);
+        assertEquals("Item", result.getName());
+        verify(itemRequestRepository).findById(1L);
+        verify(itemRepository).save(any(Item.class));
     }
 
     @Test
@@ -122,8 +166,12 @@ class ItemServiceImplTest {
 
     @Test
     void updateItem_shouldThrowForbiddenIfNotOwner() {
+        User otherOwner = new User();
+        otherOwner.setId(2L);
+        item.setOwner(otherOwner);
+
         when(itemRepository.findById(1L)).thenReturn(Optional.of(item));
-        assertThrows(ForbiddenException.class, () -> itemService.updateItem(1L, 2L, itemDto));
+        assertThrows(ForbiddenException.class, () -> itemService.updateItem(1L, 1L, itemDto));
     }
 
     @Test
@@ -135,10 +183,6 @@ class ItemServiceImplTest {
 
     @Test
     void addComment_shouldSaveComment() {
-        User booker = new User();
-        booker.setId(2L);
-        booker.setName("Booker");
-
         when(userRepository.findById(2L)).thenReturn(Optional.of(booker));
         when(itemRepository.findById(1L)).thenReturn(Optional.of(item));
         when(bookingRepository.existsByItemIdAndBookerIdAndEndBeforeAndStatus(anyLong(), anyLong(), any(), any()))
@@ -160,13 +204,13 @@ class ItemServiceImplTest {
 
     @Test
     void addComment_shouldThrowIfUserNotBooked() {
-        when(userRepository.findById(2L)).thenReturn(Optional.of(new User()));
+        when(userRepository.findById(2L)).thenReturn(Optional.of(booker));
         when(itemRepository.findById(1L)).thenReturn(Optional.of(item));
         when(bookingRepository.existsByItemIdAndBookerIdAndEndBeforeAndStatus(anyLong(), anyLong(), any(), any()))
                 .thenReturn(false);
 
         CommentDto commentDto = new CommentDto();
         commentDto.setText("Great!");
-        assertThrows(RuntimeException.class, () -> itemService.addComment(2L, 1L, commentDto));
+        assertThrows(ValidationException.class, () -> itemService.addComment(2L, 1L, commentDto));
     }
 }

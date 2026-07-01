@@ -38,6 +38,7 @@ class ItemRequestServiceImplTest {
     private ItemRequestServiceImpl service;
 
     private User requester;
+    private User owner;
     private ItemRequest request;
     private Item item;
 
@@ -47,6 +48,10 @@ class ItemRequestServiceImplTest {
         requester.setId(1L);
         requester.setName("Test User");
         requester.setEmail("test@user.com");
+
+        owner = new User();
+        owner.setId(2L);
+        owner.setName("Owner");
 
         request = new ItemRequest();
         request.setId(1L);
@@ -59,8 +64,8 @@ class ItemRequestServiceImplTest {
         item.setName("Книга");
         item.setDescription("Учебник по Java");
         item.setAvailable(true);
-        item.setOwnerId(2L);
-        item.setRequestId(1L);
+        item.setOwner(owner);
+        item.setRequest(request);
     }
 
     @Test
@@ -102,7 +107,7 @@ class ItemRequestServiceImplTest {
         assertEquals(1, result.get(0).getItems().size());
         verify(userRepository).findById(1L);
         verify(requestRepository).findByRequesterIdOrderByCreatedDesc(1L);
-        verify(itemRepository).findByRequestIdIn(List.of(1L)); // теперь ожидается этот вызов
+        verify(itemRepository).findByRequestIdIn(List.of(1L));
     }
 
     @Test
@@ -127,7 +132,7 @@ class ItemRequestServiceImplTest {
         assertEquals(1, result.size());
         verify(userRepository).findById(1L);
         verify(requestRepository).findByRequesterIdNotOrderByCreatedDesc(eq(1L), any(PageRequest.class));
-        verify(itemRepository).findByRequestIdIn(List.of(1L)); // теперь ожидается этот вызов
+        verify(itemRepository).findByRequestIdIn(List.of(1L));
     }
 
     @Test

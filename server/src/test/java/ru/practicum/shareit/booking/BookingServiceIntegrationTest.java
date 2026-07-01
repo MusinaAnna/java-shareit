@@ -8,10 +8,9 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 import ru.practicum.shareit.booking.dto.BookingCreateDto;
 import ru.practicum.shareit.booking.dto.BookingDto;
-import ru.practicum.shareit.exception.NotFoundException;
 import ru.practicum.shareit.exception.ValidationException;
-import ru.practicum.shareit.item.model.Item;
 import ru.practicum.shareit.item.ItemRepository;
+import ru.practicum.shareit.item.model.Item;
 import ru.practicum.shareit.user.User;
 import ru.practicum.shareit.user.UserRepository;
 
@@ -54,7 +53,7 @@ class BookingServiceIntegrationTest {
         item.setName("Booking Item");
         item.setDescription("Desc");
         item.setAvailable(true);
-        item.setOwnerId(owner.getId());
+        item.setOwner(owner);
         item = itemRepository.save(item);
     }
 

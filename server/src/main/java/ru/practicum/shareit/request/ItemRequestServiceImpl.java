@@ -90,7 +90,7 @@ public class ItemRequestServiceImpl implements ItemRequestService {
         ItemRequestDto dto = mapToDto(request);
         List<Item> items = itemRepository.findByRequestId(request.getId());
         dto.setItems(items.stream()
-                .map(ItemMapper::toDto)
+                .map(item -> ItemMapper.toDto(item))
                 .collect(Collectors.toList()));
         return dto;
     }
@@ -107,14 +107,15 @@ public class ItemRequestServiceImpl implements ItemRequestService {
         List<Item> items = itemRepository.findByRequestIdIn(requestIds);
 
         Map<Long, List<Item>> itemsByRequestId = items.stream()
-                .collect(Collectors.groupingBy(Item::getRequestId));
+                .filter(item -> item.getRequest() != null)
+                .collect(Collectors.groupingBy(item -> item.getRequest().getId()));
 
         return requests.stream()
                 .map(request -> {
                     ItemRequestDto dto = mapToDto(request);
                     List<Item> requestItems = itemsByRequestId.getOrDefault(request.getId(), Collections.emptyList());
                     dto.setItems(requestItems.stream()
-                            .map(ItemMapper::toDto)
+                            .map(item -> ItemMapper.toDto(item))
                             .collect(Collectors.toList()));
                     return dto;
                 })

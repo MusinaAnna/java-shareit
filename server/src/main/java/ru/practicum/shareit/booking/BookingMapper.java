@@ -27,8 +27,8 @@ public class BookingMapper {
             itemDto.setName(item.getName());
             itemDto.setDescription(item.getDescription());
             itemDto.setAvailable(item.getAvailable());
-            itemDto.setOwnerId(item.getOwnerId());
-            itemDto.setRequestId(item.getRequestId());
+            itemDto.setOwnerId(item.getOwner() != null ? item.getOwner().getId() : null);
+            itemDto.setRequestId(item.getRequest() != null ? item.getRequest().getId() : null);
             dto.setItem(itemDto);
         }
 

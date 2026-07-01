@@ -62,7 +62,7 @@ class BookingServiceImplTest {
         item.setId(10L);
         item.setName("Item");
         item.setAvailable(true);
-        item.setOwnerId(2L);
+        item.setOwner(owner);
 
         booking = new Booking();
         booking.setId(1L);

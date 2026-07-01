@@ -15,6 +15,8 @@ import ru.practicum.shareit.item.dto.CommentDto;
 import ru.practicum.shareit.item.dto.ItemDto;
 import ru.practicum.shareit.item.model.Comment;
 import ru.practicum.shareit.item.model.Item;
+import ru.practicum.shareit.request.ItemRequestRepository;
+import ru.practicum.shareit.request.ItemRequest;
 import ru.practicum.shareit.user.User;
 import ru.practicum.shareit.user.UserRepository;
 
@@ -35,6 +37,7 @@ public class ItemServiceImpl implements ItemService {
     private final CommentRepository commentRepository;
     private final BookingRepository bookingRepository;
     private final BookingMapper bookingMapper;
+    private final ItemRequestRepository itemRequestRepository;
 
     @Override
     public List<ItemDto> getItemsByOwner(Long ownerId) {
@@ -97,11 +100,16 @@ public class ItemServiceImpl implements ItemService {
     @Override
     @Transactional
     public ItemDto createItem(Long ownerId, ItemDto itemDto) {
-        userRepository.findById(ownerId)
+        User owner = userRepository.findById(ownerId)
                 .orElseThrow(() -> new NotFoundException("Пользователь с id=" + ownerId + " не найден"));
 
-        Item item = ItemMapper.toItem(itemDto);
-        item.setOwnerId(ownerId);
+        ItemRequest request = null;
+        if (itemDto.getRequestId() != null) {
+            request = itemRequestRepository.findById(itemDto.getRequestId())
+                    .orElseThrow(() -> new NotFoundException("Запрос с id=" + itemDto.getRequestId() + " не найден"));
+        }
+
+        Item item = ItemMapper.toItem(itemDto, owner, request);
         Item saved = itemRepository.save(item);
         log.info("Создана вещь id={} для пользователя id={}", saved.getId(), ownerId);
         return ItemMapper.toDto(saved);
@@ -113,7 +121,7 @@ public class ItemServiceImpl implements ItemService {
         Item item = itemRepository.findById(itemId)
                 .orElseThrow(() -> new NotFoundException("Вещь с id=" + itemId + " не найдена"));
 
-        if (!item.getOwnerId().equals(ownerId)) {
+        if (!item.getOwner().getId().equals(ownerId)) {
             throw new ForbiddenException("Редактировать вещь может только её владелец");
         }
 
